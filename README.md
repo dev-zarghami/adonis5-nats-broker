@@ -1,5 +1,5 @@
 
-# adonis5-nats-broker
+# Adonis 5 Nats Broker
 **AdonisJS** is a Node.js framework, and hence it requires Node.js to be installed on your computer. To be precise, we need at least the latest release of **Node.js v14**.
 > Adonis, microservices, nats , messageBroker
 
