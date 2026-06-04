@@ -33,7 +33,7 @@
     "broker",
     "microservices"
   ],
-  "author": "hassan zarghami <dev.zarghami@gmail.com>",
+  "author": "artin zarghami <dev.zarghami@gmail.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/devzarghami/adonis5-nats-broker/issues"
