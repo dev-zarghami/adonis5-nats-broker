@@ -1,35 +1,33 @@
 ## Config
-The provided TypeScript configuration file appears to be configuring settings for a NATS messaging broker within an AdonisJS application. Let's summarize its key configurations:
 
-1. **`runModes`**: An array of file extensions that represent different run modes for the application, such as 'test.ts', 'server.js', and 'server.ts'.
+The `config/nats.ts` file configures the NATS broker within an AdonisJS application. The v2 shape:
 
-2. **`ignoreMiddlewares`**: An array of middleware names to be ignored during the NATS request processing. For example, 'BodyParserMiddleware' is ignored.
+1. **`runModes`**: Process entrypoints (e.g. `'test.ts'`, `'server.js'`, `'server.ts'`) for which the broker opens its connection and starts consuming routes + JetStream consumers on boot. Other processes (e.g. the HTTP server, ace commands) connect lazily only when they use the broker, KV, Object Store, or JetStream publish.
 
-3. **`connection`**: Configuration for the NATS connection, including:
-    - `debug`: Whether to enable debugging for the NATS connection.
-    - `name`: A name for the NATS connection.
-    - `servers`: The NATS server URL, e.g., 'nats://localhost:4222'.
-    - `maxReconnectAttempts`: The maximum number of reconnection attempts.
-    - `pingInterval`: The interval at which the client sends ping requests to the server.
-    - `reconnect`: Whether to enable reconnection.
-    - `reconnectTimeWait`: Time to wait before attempting to reconnect.
-    - `timeout`: Timeout for NATS requests.
+2. **`ignoreMiddlewares`**: Global middleware names to skip during NATS request processing (e.g. `'BodyParserMiddleware'`).
 
-4. **`namespaces`**: Configuration for specifying namespaces for different parts of the application, including controllers, middleware, exceptions, and the exception handler.
+3. **`generateRequestId`**: Whether to auto-generate an `x-request-id` header when one is absent.
 
-5. **`generateRequestId`**: A boolean indicating whether to generate a request ID for NATS requests.
+4. **`connection`**: The single shared NATS connection options, reused by routes, requests, publishes, JetStream, KV, and Object Store:
+    - `name`: A name for the connection.
+    - `servers`: The NATS server URL(s), e.g. `'nats://localhost:4222'`.
+    - `maxReconnectAttempts`, `pingInterval`, `reconnect`, `reconnectTimeWait`, `timeout`: standard nats.js connection options.
 
-6. **`routes`**: Configuration related to routes, including options and a route prefix.
+5. **`namespaces`**: Resolution paths for `controllers`, `middleware`, `exceptions`, `exceptionHandler`, and `listeners`.
 
-7. **`request`**: Configuration related to NATS request handling, including:
-    - `timeout`: Timeout for NATS requests.
-    - `prefix`: A prefix for NATS request routes.
-    - `headers`: Default headers for NATS requests.
-    - `qs`: Default query string parameters for NATS requests.
+6. **`core`**: Core (non-JetStream) request/reply and publish behaviour:
+    - **`routes`**: `options` (subscription options) and `prefix` (subject prefix for routes).
+    - **`request`**: `timeout`, `prefix`, `headers`, `qs` defaults for outbound requests.
+    - **`publish`**: `prefix`, `headers`, `qs` defaults for outbound publishes.
 
-8. **`publish`**: Configuration related to publishing messages, including:
-    - `prefix`: A prefix for NATS message subjects when publishing.
-    - `headers`: Default headers for published messages.
-    - `qs`: Default query string parameters for published messages.
+7. **`jetstream`**: JetStream configuration:
+    - `enabled`: Start JetStream consumers on boot.
+    - `domain` (optional): JetStream domain.
+    - `streams`: Streams declared for `node ace nats:sync` to reconcile (raw nats.js `StreamConfig`, with `name` required).
+    - `consumers`: Durable consumers declared for sync (`{ stream }` plus raw `ConsumerConfig` fields such as `durable_name`, `filter_subject`, `ack_policy`).
 
-This configuration file provides a centralized way to define settings for the NATS broker and request handling within the AdonisJS application, making it easier to manage and maintain these settings.
+8. **`kv`**: `buckets` — KV buckets to ensure on sync (`{ name }` plus `KvOptions`).
+
+9. **`objectStore`**: `buckets` — Object Store buckets to ensure on sync (`{ name }` plus `ObjectStoreOptions`).
+
+> The provider shallow-merges your `config/nats.ts` over the defaults, so keep the file a complete config object.

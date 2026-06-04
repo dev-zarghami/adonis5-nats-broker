@@ -1,0 +1,45 @@
+/*
+ * adonis5-nats-broker
+ *
+ * (c) Dev.zarghami https://github.com/devzarghami
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+import { BaseCommand } from '@adonisjs/core/build/standalone'
+
+export default class NatsSync extends BaseCommand {
+  public static commandName = 'nats:sync'
+  public static description =
+    'Reconcile JetStream streams/consumers and KV/Object Store buckets from config'
+
+  public static settings = {
+    loadApp: true,
+    stayAlive: false,
+  }
+
+  public async run(): Promise<void> {
+    const stream: any = this.application.container.use('Adonis/Addons/NatsStream')
+    const broker: any = this.application.container.use('Adonis/Addons/NatsBroker')
+
+    this.logger.info('Reconciling NATS resources from config...')
+    try {
+      const report = await stream.sync()
+      if (!report.length) {
+        this.logger.info('Nothing declared to sync.')
+      }
+      for (const entry of report) {
+        if (entry.action === 'created') {
+          this.logger.action('create').succeeded(`${entry.kind} ${entry.name}`)
+        } else if (entry.action === 'updated') {
+          this.logger.action('update').succeeded(`${entry.kind} ${entry.name}`)
+        } else {
+          this.logger.action('skip').skipped(`${entry.kind} ${entry.name}`, 'already exists')
+        }
+      }
+    } finally {
+      await broker.closeConnection()
+    }
+  }
+}

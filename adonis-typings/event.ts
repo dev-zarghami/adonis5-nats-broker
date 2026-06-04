@@ -1,8 +1,11 @@
 declare module '@ioc:Adonis/Core/Event' {
-  import { NatsConnection } from 'nats'
+  import type { NatsConnection } from '@nats-io/nats-core'
   interface EventsList {
     'nats:connect': {
       connection: NatsConnection | Error
+    }
+    'nats:reconnect': {
+      connection: NatsConnection
     }
     'nats:disconnect': {
       connection: NatsConnection

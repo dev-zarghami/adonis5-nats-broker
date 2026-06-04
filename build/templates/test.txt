@@ -1,0 +1,10 @@
+import { test } from '@japa/runner'
+
+test.group('Test', () => {
+  // Write your test here
+  test('test one', async ({ broker }) => {
+    const response = await broker.request('endpoint')
+    response.assertStatus(200)
+    response.assertBodyContains({})
+  })
+})

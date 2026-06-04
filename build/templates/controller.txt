@@ -1,0 +1,32 @@
+import type {NatsContextContract} from '@ioc:Adonis/Addons/NatsContext'
+import {schema} from "@ioc:Adonis/Core/Validator";
+
+export default class {{ filename }} {
+  public async index({}: NatsContextContract) {
+  }
+
+  public async create({request, response}: NatsContextContract) {
+    const validatorSchema = schema.create({
+      name: schema.string(),
+      family: schema.string(),
+    })
+    const payload: any = await request.validate({schema: validatorSchema})
+
+    return response.created("everything is ok")
+  }
+
+  public async store({}: NatsContextContract) {
+  }
+
+  public async show({}: NatsContextContract) {
+  }
+
+  public async edit({}: NatsContextContract) {
+  }
+
+  public async update({}: NatsContextContract) {
+  }
+
+  public async destroy({}: NatsContextContract) {
+  }
+}

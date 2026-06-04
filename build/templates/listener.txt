@@ -1,0 +1,26 @@
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+/*
+|--------------------------------------------------------------------------
+| JetStream listener
+|--------------------------------------------------------------------------
+| Bind an action to a stream consumer in start/broker.ts, e.g.
+|
+|   import Jet from '@ioc:Adonis/Addons/NatsJetStream'
+|   Jet.consume(
+|     { stream: 'ORDERS', durable: 'orders-worker', filterSubject: 'orders.created' },
+|     '{{ filename }}.onMessage'
+|   )
+|
+| The message is auto-acked when the action returns and auto-naked when it
+| throws. Use ctx.message.ack() / nak() / term() / working() for manual control.
+*/
+export default class {{ filename }} {
+  public async onMessage({ request, message }: NatsContextContract) {
+    const payload = request.body()
+
+    // ... handle the message ...
+
+    message?.ack()
+  }
+}

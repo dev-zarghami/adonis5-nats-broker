@@ -1,11 +1,14 @@
 {
   "name": "adonis5-nats-broker",
-  "version": "1.1.17",
+  "version": "2.0.0",
   "description": "Adonis Nats broker",
   "main": "build/providers/NatsProvider.js",
+  "files": [
+    "build",
+    "templates"
+  ],
   "scripts": {
     "package": "npm pack --pack-destination ~",
-    "pretest": "npm run lint",
     "mrm": "mrm --preset=@adonisjs/mrm-preset",
     "clean": "rm -rf build",
     "compile": "npm run lint && npm run clean && tsc && cp -r templates build/",
@@ -24,6 +27,9 @@
     "adonis",
     "adonis5",
     "nats",
+    "jetstream",
+    "kv",
+    "object-store",
     "broker",
     "microservices"
   ],
@@ -47,15 +53,17 @@
     "eslint-plugin-adonis": "^2.1.1",
     "eslint-plugin-prettier": "^3.4.0",
     "github-label-sync": "^2.0.2",
-    "japa": "^3.1.1",
     "mrm": "^4.1.17",
     "prettier": "^2.3.2",
     "@types/qs": "^6.9.7",
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "@japa/assert": "^1.4.1",
-    "nats": "^2.8.0"
+    "@nats-io/jetstream": "^3.4.0",
+    "@nats-io/kv": "^3.4.0",
+    "@nats-io/nats-core": "^3.4.0",
+    "@nats-io/obj": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0"
   },
   "mrmConfig": {
     "core": false,
@@ -63,9 +71,6 @@
     "services": [],
     "minNodeVersion": "latest",
     "probotApps": []
-  },
-  "directories": {
-    "test": "test"
   },
   "adonisjs": {
     "preloads": [

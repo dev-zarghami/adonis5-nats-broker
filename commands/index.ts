@@ -10,7 +10,9 @@
 export default [
   'adonis5-nats-broker/build/commands/MakeController',
   'adonis5-nats-broker/build/commands/MakeMiddleware',
+  'adonis5-nats-broker/build/commands/MakeListener',
   'adonis5-nats-broker/build/commands/MakeTest',
   'adonis5-nats-broker/build/commands/MakeException',
   'adonis5-nats-broker/build/commands/MakeHandler',
+  'adonis5-nats-broker/build/commands/NatsSync',
 ]

@@ -110,7 +110,7 @@ declare module '@ioc:Adonis/Addons/NatsRequest' {
     servers?: string
   }
   export interface NatsRequestResponse {
-    headers: object
+    headers: { status: number } & Record<string, any>
     body: any
     request: {
       servers: string | string[] | undefined

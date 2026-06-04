@@ -1,379 +1,573 @@
-
 # adonis5-nats-broker
-**AdonisJS** is a Node.js framework, and hence it requires Node.js to be installed on your computer. To be precise, we need at least the latest release of **Node.js v14**.
-> Adonis, microservices, nats , messageBroker
 
+[![npm version](https://img.shields.io/npm/v/adonis5-nats-broker.svg)](https://www.npmjs.com/package/adonis5-nats-broker)
+[![license](https://img.shields.io/npm/l/adonis5-nats-broker.svg)](LICENSE.md)
 
-## REST to NATS Proxy
-The [REST to NATS](https://nats.io/blog/natsproxy_project/) proxy project [sohlich/nats-proxy](https://gopkg.in/sohlich/nats-proxy.v1) is the micro framework that provides a bridge between HTTP and NATS. To introduce the problem, we first compare the HTTP and NATS communication models. The table below represents the matching of HTTP and NATS concepts and what do they provide.
+> NATS for AdonisJS v5 — request/reply, JetStream, KV, and Object Store, all in the controller / middleware / request-response model you already know.
 
+`adonis5-nats-broker` lets an AdonisJS service expose NATS subjects as **routes** handled by **controllers**, call other services with `request` / `publish`, consume **JetStream** streams in that same controller style, and use injected **KV** and **Object Store** managers — reusing AdonisJS's middleware, validator, exception handler, and logger throughout.
+
+If you can build an HTTP API in AdonisJS, you already know how to use this.
+
+```typescript
+// start/broker.ts                          app/Controllers/Nats/UsersController.ts
+Broker.route('get.users', 'UsersController.index')
+                                            export default class UsersController {
+// elsewhere — call it like fetch():          public async index({ response }) {
+const res = await Broker.request('get.users') //   return response.ok([{ id: 1 }])
+res.body // => [{ id: 1 }]                       }
+                                            }
+```
+
+### How it maps to HTTP
+
+| AdonisJS HTTP | adonis5-nats-broker |
+| --- | --- |
+| URL + method (`GET /users/:id`) | NATS subject (`get.users.{id}`) |
+| Route param `:id` | Subject token `{id}` |
+| Controller in `app/Controllers` | Controller in `app/Controllers/Nats` |
+| Middleware in `app/Middleware` | Middleware in `app/Middleware/Nats` |
+| `ctx.request` / `ctx.response` | the same API |
+| HTTP status code | a `status` header on the reply |
+| calling another service (`fetch`) | `Broker.request()` / `Broker.publish()` / `Jet.publish()` |
+
+### Features
+
+- **Core NATS** — request/reply routes, fire-and-forget publish, route groups, middleware.
+- **JetStream** — persistent publish with acks, and consumers in the controller style with `ack` / `nak` / `term` / `working`.
+- **KV** & **Object Store** — injected managers, usable from anywhere (including HTTP handlers).
+- **Declarative resources** — describe streams, consumers, and buckets in config; reconcile with one idempotent command.
+- **One shared connection** — reused across requests, publishes, JetStream, KV, and Object Store.
+- Built on the modular **nats.js v3** (`@nats-io/*`). Requires AdonisJS v5 and Node.js 18+.
 
 ## Table of contents
 
-- [adonis5-nats-broker](#adonis5-nats-broker)
-- [Installation](#installation)
+- [Quick start](#quick-start)
 - [Configuration](#configuration)
-- [Exception handling](#exception-handling)
-  - [Handling exceptions globally](#handling-exceptions-globally)
-  - [Custom exceptions](#custom-exceptions)
-- [Controllers](#controllers)
-  - [Applying middleware](#applying-middleware)
-  - [Controllers location](#controllers-location)
-  - [Creating Controllers](#creating-controllers)
+- [Routes & controllers](#routes--controllers)
+  - [Controllers](#controllers)
+  - [Route groups](#route-groups)
+  - [Requesting & publishing](#requesting--publishing)
+  - [Request & response](#request--response)
 - [Middleware](#middleware)
-  - [Basic Example](#basic-example)
-  - [Middleware classes](#middleware-classes)
-  - [About middleware class](#about-middleware-class)
-  - [Registering middleware](#registering-middleware)
-    - [Global middleware](#global-middleware)
-    - [Named middleware](#named-middleware)
-      - [Passing config to named middleware](#passing-config-to-named-middleware)
-  - [Testing](#testing)
-    - [Configuring](#configuring)
+- [Exception handling](#exception-handling)
+- [JetStream](#jetstream)
+- [Key-Value store](#key-value-store)
+- [Object store](#object-store)
+- [Connection events](#connection-events)
+- [Testing](#testing)
+- [Ace commands](#ace-commands)
+- [Migrating from v1](#migrating-from-v1)
 
+## Quick start
 
+**1. Install & configure**
 
-## Installation
-You can install the adonis5-nats-broker package using npm:
-
-```bash  
-npm i adonis5-nats-broker  
-```  
-Additionally, you can set up a NATS server using Docker:
-
-```yaml  
-version: '3.7'  
-services:  
-nats:  
-image: 'nats'  
-ports:  
-- '4222:4222'  
-```
-Start the NATS server with:
-
-```bash  
-docker-compose up nats  
-```  
-## Configuration
-Initialize and configure the adonis5-nats-broker package:
-
-```bash  
-node ace configure adonis5-nats-broker  
-node ace init:nats:handler  
-```  
-
-## Exception handling
-AdonisJS uses exceptions for flow control instead of excessive conditionals. Exception handling can be done globally and with custom exceptions.
-
-```bash  
-node ace init:nats:handler  
-
-# CREATE: app/Exceptions/Nats/Handler.ts  
-```  
-### Handling exceptions globally
-Exceptions during NATS requests are handled by the global exception handler, typically located in app/Exceptions/Nats/Handler.ts. You can customize this handler to handle specific exceptions, such as validation failures.
-
-```typescript  
-import Logger from '@ioc:Adonis/Core/Logger'  
-import NatsExceptionHandler from '@ioc:Adonis/Addons/NatsExceptionHandler'  
-  
-export default class ExceptionHandler extends NatsExceptionHandler {  
-	constructor() {  
-		super(Logger)  
-	}  
-  
-	public async handle(error: any, ctx: NatsContextContract) {  
-		/**  
-		* Self handle the validation exception  
-		*/  
-		if (error.code === 'E_VALIDATION_FAILURE') {  
-			return ctx.response.status(422).send(error.messages)  
-		}  
-		  
-		/**  
-		* Forward rest of the exceptions to the parent class  
-		*/  
-		return super.handle(error, ctx)  
-	}  
-		  
-	public async report(error: any, ctx: NatsContextContract) {  
-		if (!this.shouldReport(error)) {  
-			return  
-		}  
-		  
-		if (typeof error.report === 'function') {  
-			error.report(error, ctx)  
-			return  
-		}  
-		  
-		someReportingService.report(error.message)  
-	}  
-}  
-```  
-### Custom exceptions
-You can create custom exceptions using the node ace make:nats:exception command. These exceptions can be raised in your code to handle specific error cases. You can customize the handling and reporting of these exceptions as needed.
-
-
-```bash  
-node ace make:nats:exception UnAuthorized  
-
-# CREATE: app/Exceptions/Nats/UnAuthorizedException.ts  
-```  
-Next, import and raise the exception as follows.
-```typescript  
-import UnAuthorized from 'App/Exceptions/Nats/UnAuthorizedException'  
-  
-const message = 'You are not authorized'  
-const status = 403  
-const errorCode = 'E_UNAUTHORIZED'  
-  
-throw new UnAuthorized(message, status, errorCode)  
-  
-```  
-You can self-handle this exception by implementing the handle method on the exception class.
-
-```typescript  
-import { Exception } from '@adonisjs/core/build/standalone'  
-import { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'  
-  
-export default class UnAuthorizedException extends Exception {  
-	public async handle(error: this, ctx: NatsContextContract) {  
-		ctx.response.status(error.status).send(error.message)  
-	}  
-}  
-// app/Exceptions/Nats/UnAuthorizedException.ts  
-  
-```  
-Optionally, implement the report method to report the exception to a logging or error reporting service.
-
-```typescript  
-import { Exception } from '@adonisjs/core/build/standalone'  
-import { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'  
-  
-export default class UnAuthorizedException extends Exception {  
-	public report(error: this, ctx: NatsContextContract) {  
-		reportingService.report(error.message)  
-	}  
-}  
-// app/Exceptions/Nats/UnAuthorizedException.ts  
-  
-```  
-## Controllers
-Controllers are essential for handling NATS requests in AdonisJS. They help organize route handling logic.
-
-```typescript  
-import { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'  
-  
-export default class PostsController {  
-	public async index(ctx: NatsContextContract) {  
-	return [  
-			{ id: 1, title: 'Hello world'},  
-			{ id: 2, title: 'Hello universe'},  
-		]  
-	}  
-}  
-```  
-You will have to reference it as a route handler inside the ***start/broker.ts*** file to use this controller.
-```typescript  
-Broker.route('get.posts', 'PostsController.index')  
-```  
-### Applying middleware
-Middleware can be applied to routes using the .middleware method. Middleware functions execute before the route handler. You can enable and disable middleware for specific routes.
-
-```typescript  
-Broker.middleware('userAuth')  
-Broker.route('get.posts', 'PostsController.index')  
-Broker.middleware()  
-```  
-
-
-### Controllers location
-By convention, controllers are stored in the app/Controllers/Nats directory, but their location can be configured in the config/nats.ts file.
-
-```json  
-{  
-	"namespaces": {  
-		"controllers": "App/Controllers/Nats"  
-	}  
-}  
-```  
-### Creating Controllers
-You can generate controllers using the node ace make:nats:controller command.
-
-```bash  
-node ace make:nats:controller Post  
-
-# CREATE: app/Controllers/Nats/UserController.ts  
-```  
-## Middleware
-Middleware functions are executed before route handlers and can modify requests or responses.
-
-
-### Basic example
-You can attach middleware to routes using Broker.middleware. Middleware functions can be simple inline functions.
-
-```typescript  
-// Enabling middleware for below routes  
-Broker.middleware('userAuth')  
-  
-Broker.route('get.users', 'UsersController.index')  
-Broker.route('post.users', 'UsersController.store')  
-Broker.route('put.users.{id}', 'UsersController.update')  
-Broker.route('get.users.{id}', 'UsersController.detail')  
-Broker.route('delete.users.{id}', 'UsersController.delete')  
-  
-// Disabling middleware for any routes after below middleware  
-Broker.middleware()  
-```  
-### Middleware classes
-It's recommended to create middleware as classes to keep your code organized. Middleware classes are stored in the app/Middleware/Nats directory. Each class must implement the handle method.
-
-```bash  
-node ace make:nats:middleware LogRequest  
-  
-// CREATE: app/Middleware/LogRequest.ts  
-  
-```  
-### Registering middleware
-For the middleware to take effect, it must be registered as a global middleware or a named middleware inside the ***start/kernel.ts*** file.
-
-#### Global middleware
-Global middleware are executed for all the NATS requests in the same sequence as they are registered.
-
-You register them as an array inside the ***start/kernel.ts*** file, as shown below:
-```typescript  
-Server.middleware.register([  
-	() => import('App/Middleware/Nats/LogRequest')  
-])  
-```  
-#### Named middleware
-Named middleware allows you to selectively apply middleware on your routes. You begin by registering them with a unique name and later reference it on the route by that name.
-```typescript  
-Server.middleware.registerNamed({  
-	auth: () => import('App/Middleware/Nats/Auth')  
-})  
-```  
-##### Passing config to named middleware
-Named middleware can also accept runtime config through the handle method as the third argument. For example:
-```typescript  
-export default class Auth {  
-	public async handle({ request, response }: NatsContextContract, next: () => Promise<void>, guards?: string[]) {  
-		console.log(guards)  
-	}  
-}  
-```  
-In the above example, the Auth middleware accepts an optional guards array. The user of the middleware can pass the guards as follows:
-
-```typescript  
-import Broker from "./Broker";  
-  
-Broker.middleware('auth:web,api')  
-Broker.route('get.profile', 'UserController.profile')  
-  
-```  
-
-## Testing
-AdonisJS has out of the box support for testing, and there is no need to install any third-party packages for the same. Just run the  `node ace test`  and the magic will happen.
-
-### Configuring
-Register Nats test plugin in to array inside the ***tests/bootstrap.ts*** file, as shown below:
-
-```typescript  
-import {natsClient} from 'adonis5-nats-broker/build/src/test'  
-import Broker from '@ioc:Adonis/Addons/NatsBroker'  
-  
-export const plugins: Required<Config>['plugins'] = [  
-	assert(),  
-	runFailedTests(),  
-	apiClient(),  
-	natsClient(Broker),  
-]  
-```  
-The primary use case for the NATS client is to test JSON responses. However, there are no technical limitations around other response types like HTML, or even plain text.
-
-```typescript  
-import {test} from '@japa/runner'  
-  
-test.group('Users', () => {  
-	test('get users', async ({ broker }) => {  
-		const response = await broker.request('get.users', {}, { qs:{}, headers:{} })  
-		response.assertStatus(200)  
-		response.assertBodyContains([])  
-	})  
-})  
+```bash
+npm i adonis5-nats-broker
+node ace configure adonis5-nats-broker   # writes config/nats.ts + start/broker.ts, wires the provider
+node ace init:nats:handler               # creates app/Exceptions/Nats/Handler.ts
 ```
 
-## Example usage
-Here's an example of how to use adonis5-nats-broker in your AdonisJS application:
+**2. Run a NATS server** (the `-js` flag enables JetStream / KV / Object Store)
 
-### start/broker.ts:
-In this file, you can configure routes and middleware for NATS handling:
+```yaml
+# docker-compose.yaml
+services:
+  nats:
+    image: 'nats'
+    command: '-js'
+    ports:
+      - '4222:4222'
+```
 
-```typescript  
+```bash
+docker compose up nats
+```
+
+**3. Define a route and a controller**
+
+```typescript
+// start/broker.ts
 import Broker from '@ioc:Adonis/Addons/NatsBroker'
 
-Broker.middleware("auth") // Enable middleware for specific routes
 Broker.route('get.users', 'UsersController.index')
-Broker.middleware() // Disable auth middleware
-
-// Route without named middleware
-Broker.route('get.countries', 'CountriesController.index')
-  
-```  
-
-### app/Controllers/Nats/UserController.ts:
-A sample controller handling NATS requests:
-
-```typescript  
-import type {NatsContextContract} from '@ioc:Adonis/Addons/NatsContext'  
-import {schema} from "@ioc:Adonis/Core/Validator";  
-import UpdateUserValidator from 'App/Validators/UpdateUserValidator'
-  
-export default class UserController {  
-	public async index({response}: NatsContextContract) {  
-		return response.ok([])  
-	}  
-	
-	public async store({ request, response }: HttpContextContract) { 
-		 const userSchema = schema.create({  
-			first_name: schema.string({}, [rules.minLength(5), rules.maxLength(30)]),  
-			last_name: schema.string({}, [rules.minLength(5), rules.maxLength(50)]),  
-		})
-		/** Validate request body against the schema */  
-		const payload: any = await request.validate({schema:userSchema })
-		/** store new user in database */  
-		const user: User = await User.create(payload) 
-		return response.created({  
-			message: 'The user was successfully created',  
-			data: user,  
-		})  
-	}
-	
-	public async update({ request, response }: HttpContextContract) { 
-			/** Validate request body against the schema */  
-			const payload: any = await request.validate(UpdateUserValidator)  
-			/** store new user in database */  
-			const user: User = await User.create(payload) 
-			return response.created({  
-				message: 'The user was successfully created',  
-				data: user,  
-			})  
-	}
-}  
-```  
-### App/Middleware/Nats/Auth.ts:
-Sample middleware for authentication:
-
-
-```typescript  
-import type {NatsContextContract} from '@ioc:Adonis/Addons/NatsContext'  
-  
-export default class Auth {  
-	public async handle({request, response}: NatsContextContract) {  
-		// code for middleware goes here. ABOVE THE NEXT CALL  
-		if (!request.header('authorization'))  
-		return response.unauthorized({message: "authorization token is required"})  
-		request.set('user', { name: 'jon', family: 'doe'})
-	}  
-}  
 ```
+
+```bash
+node ace make:nats:controller User
+```
+
+```typescript
+// app/Controllers/Nats/UsersController.ts
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+export default class UsersController {
+  public async index({ response }: NatsContextContract) {
+    return response.ok([{ id: 1, name: 'Jon' }])
+  }
+}
+```
+
+**4. Call it** — from an HTTP controller, a test, or another service:
+
+```typescript
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+const res = await Broker.request('get.users')
+res.body // => [{ id: 1, name: 'Jon' }]
+```
+
+That's the whole loop. Everything below builds on it.
+
+## Configuration
+
+`configure` writes `config/nats.ts`. The full shape:
+
+```typescript
+import Env from '@ioc:Adonis/Core/Env'
+import type { ConfigContract } from '@ioc:Adonis/Addons/NatsBroker'
+
+const config: ConfigContract = {
+  // Process entrypoints that open the connection and start consuming on boot.
+  runModes: ['test.ts', 'server.js', 'server.ts'],
+  ignoreMiddlewares: ['BodyParserMiddleware'],
+  generateRequestId: true,
+
+  // The single shared connection, reused everywhere.
+  connection: {
+    name: Env.get('NATS_NAME'),
+    servers: Env.get('NATS_SERVER'),
+    maxReconnectAttempts: 10,
+    reconnect: true,
+    timeout: 30000,
+  },
+
+  namespaces: {
+    controllers: 'app/Controllers/Nats',
+    middleware: 'app/Middleware/Nats',
+    exceptions: 'app/Exceptions/Nats',
+    exceptionHandler: 'app/Exceptions/Nats/Handler',
+    listeners: 'app/Controllers/Nats',
+  },
+
+  // Core (non-JetStream) request/reply + publish behaviour.
+  core: {
+    routes: { options: {}, prefix: '' },
+    request: { timeout: 30000, prefix: '', headers: {}, qs: {} },
+    publish: { prefix: '', headers: {}, qs: {} },
+  },
+
+  // JetStream / KV / Object Store — see their sections below.
+  jetstream: { enabled: false, streams: [], consumers: [] },
+  kv: { buckets: [] },
+  objectStore: { buckets: [] },
+}
+
+export default config
+```
+
+**Run modes & the lazy connection.** Only processes whose entrypoint is listed in `runModes` (the server, tests) open the connection on boot and start *consuming* routes and JetStream messages. Any other process — an HTTP server, an ace command — connects **lazily** the first time it uses the broker, JetStream, KV, or Object Store. That means you can publish, request, or read a KV bucket straight from an HTTP controller without running the NATS consumer side there.
+
+## Routes & controllers
+
+Register routes in `start/broker.ts`. A pattern like `get.users.{id}` subscribes to the subject `get.users.*`, and `{id}` becomes a route param.
+
+```typescript
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+Broker.route('get.users', 'UsersController.index')
+Broker.route('post.users', 'UsersController.store')
+Broker.route('get.users.{id}', 'UsersController.show')
+Broker.route('put.users.{id}', 'UsersController.update')
+Broker.route('delete.users.{id}', 'UsersController.destroy')
+```
+
+### Controllers
+
+Controllers live in `app/Controllers/Nats` (configurable via `namespaces.controllers`). Generate one with `node ace make:nats:controller User`.
+
+```typescript
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+import { schema } from '@ioc:Adonis/Core/Validator'
+
+export default class UsersController {
+  public async index({ response }: NatsContextContract) {
+    return response.ok([{ id: 1, name: 'Jon' }])
+  }
+
+  public async show({ request, response }: NatsContextContract) {
+    const id = request.param('id') // from the subject token {id}
+    return response.ok({ id })
+  }
+
+  public async store({ request, response }: NatsContextContract) {
+    const payload = await request.validate({
+      schema: schema.create({ name: schema.string() }),
+    })
+    return response.created({ message: 'User created', data: payload })
+  }
+}
+```
+
+A controller can `return` a value or call a `response.*` helper. The response status travels in a `status` header, not the body.
+
+### Route groups
+
+Group routes to share a subject **prefix** and/or a **middleware** stack, and attach middleware to a single route by chaining `.middleware()`. Groups nest; prefixes and middleware compose from the outside in.
+
+```typescript
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+// Every route below is prefixed with `admin.` and runs the `auth` middleware.
+Broker.group(() => {
+  Broker.route('get.users', 'UsersController.index')                 // admin.get.users
+  Broker.route('get.users.{id}', 'UsersController.show')             // admin.get.users.{id}
+    .middleware('audit')                                             // auth + audit (this route only)
+})
+  .prefix('admin')
+  .middleware('auth')
+
+// Middleware on a single, ungrouped route.
+Broker.route('get.health', 'HealthController.index').middleware('rate')
+
+// Nested groups — prefixes (api.v1.*) and middleware both compose.
+Broker.group(() => {
+  Broker.group(() => {
+    Broker.route('get.stats', 'StatsController.index')               // api.v1.get.stats, runs auth
+  }).prefix('v1')
+})
+  .prefix('api')
+  .middleware('auth')
+```
+
+The three forms combine freely — the stateful `Broker.middleware(...)` stack (below), group middleware, and per-route `.middleware(...)` all run in order, group middleware first.
+
+### Requesting & publishing
+
+Call another service and await its reply, or fire-and-forget:
+
+```typescript
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+// Request/reply — always resolves with { body, headers, request };
+// check res.headers.status to handle non-2xx replies.
+const res = await Broker.request('get.users', { page: 1 }, { headers: {}, qs: {} })
+console.log(res.body, res.headers.status)
+
+// Fire-and-forget.
+await Broker.publish('user.created', { id: 1 })
+```
+
+### Request & response
+
+Inside a controller, `ctx.request` and `ctx.response` mirror the AdonisJS HTTP API:
+
+| `request` | `response` |
+| --- | --- |
+| `body()`, `qs()`, `all()` | `ok()`, `created()`, `accepted()`, `noContent()` |
+| `input(key, default)` | `badRequest()`, `unauthorized()`, `forbidden()` |
+| `param(key, default)` | `notFound()`, `unprocessableEntity()` |
+| `header(key, default)` | `internalServerError()`, `status(code).send(body)` |
+| `validate(schema)` | `header(key, value)` |
+| `set(key, value)` / `get(key)` | …and the rest of the HTTP status helpers |
+
+## Middleware
+
+Middleware run before the controller and can short-circuit it. There are three ways to attach them; they compose.
+
+**Per route / per group** (recommended):
+
+```typescript
+Broker.route('get.users', 'UsersController.index').middleware('auth')
+Broker.group(() => { /* ... */ }).middleware('auth')
+```
+
+**Stateful stack** — `Broker.middleware()` sets a stack applied to every *subsequent* `route()` until changed (call with no args to clear):
+
+```typescript
+Broker.middleware('auth')                       // enable for the routes below
+Broker.route('get.users', 'UsersController.index')
+Broker.route('post.users', 'UsersController.store')
+Broker.middleware()                             // clear
+Broker.route('get.countries', 'CountriesController.index')
+```
+
+Create a middleware class with `node ace make:nats:middleware Auth` (in `app/Middleware/Nats`):
+
+```typescript
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+export default class Auth {
+  // `guards` come from the route, e.g. .middleware('auth:web,api')
+  public async handle(
+    { request, response }: NatsContextContract,
+    next: () => Promise<void>,
+    guards?: string[]
+  ) {
+    if (!request.header('authorization')) {
+      return response.unauthorized({ message: 'authorization header is required' })
+    }
+    request.set('user', { id: 1, name: 'jon' })
+    await next()
+  }
+}
+```
+
+Register it in `start/kernel.ts`. The broker reuses AdonisJS's middleware registry, but a NATS middleware's `handle` takes a `NatsContextContract` rather than the HTTP context — so cast the value past the HTTP middleware typing:
+
+```typescript
+// Named — referenced by name, optionally with args (`auth:web,api`)
+Server.middleware.registerNamed({
+  auth: (() => import('App/Middleware/Nats/Auth')) as any,
+})
+
+// Global — runs for every NATS request
+Server.middleware.register([(() => import('App/Middleware/Nats/LogRequest')) as any])
+```
+
+```typescript
+// start/broker.ts — pass args to the middleware
+Broker.route('get.profile', 'UserController.profile').middleware('auth:web,api')
+```
+
+## Exception handling
+
+Thrown errors are routed to `app/Exceptions/Nats/Handler.ts` (created by `node ace init:nats:handler`):
+
+```typescript
+import Logger from '@ioc:Adonis/Core/Logger'
+import NatsExceptionHandler from '@ioc:Adonis/Addons/NatsExceptionHandler'
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+export default class ExceptionHandler extends NatsExceptionHandler {
+  constructor() {
+    super(Logger)
+  }
+
+  public async handle(error: any, ctx: NatsContextContract) {
+    if (error.code === 'E_VALIDATION_FAILURE') {
+      return ctx.response.status(422).send(error.messages)
+    }
+    return super.handle(error, ctx)
+  }
+}
+```
+
+Create custom exceptions with `node ace make:nats:exception UnAuthorized`, then raise them anywhere — optionally self-handling via a `handle` method:
+
+```typescript
+import UnAuthorized from 'App/Exceptions/Nats/UnAuthorizedException'
+
+throw new UnAuthorized('You are not authorized', 403, 'E_UNAUTHORIZED')
+```
+
+```typescript
+import { Exception } from '@adonisjs/core/build/standalone'
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+export default class UnAuthorizedException extends Exception {
+  public async handle(error: this, ctx: NatsContextContract) {
+    ctx.response.status(error.status).send(error.message)
+  }
+}
+```
+
+## JetStream
+
+JetStream adds persistent, replayable messaging. Enable it in config, declare your resources, then sync them to the server.
+
+**1. Declare** streams and durable consumers in `config/nats.ts`:
+
+```typescript
+jetstream: {
+  enabled: true,
+  streams: [
+    { name: 'ORDERS', subjects: ['orders.>'], storage: 'file', retention: 'limits' },
+  ],
+  consumers: [
+    { stream: 'ORDERS', durable_name: 'orders-worker', filter_subject: 'orders.created', ack_policy: 'explicit' },
+  ],
+},
+```
+
+**2. Sync** them to the server — idempotent, so it's safe to re-run. It reports each resource as `created`, `updated`, or `exists`:
+
+```bash
+node ace nats:sync
+```
+
+> Order matters: streams are infrastructure you provision with `nats:sync`. Durable consumers bound with `Jet.consume` are created on app startup if missing, but the **stream must already exist** first.
+
+**Publish** (persistent, returns the server ack):
+
+```typescript
+import Jet from '@ioc:Adonis/Addons/NatsJetStream'
+
+const ack = await Jet.publish('orders.created', { id: 1, total: 99 })
+console.log(ack.seq) // stored sequence number
+```
+
+**Consume** in the controller style. Register in `start/broker.ts` and scaffold a listener with `node ace make:nats:listener Order`:
+
+```typescript
+import Jet from '@ioc:Adonis/Addons/NatsJetStream'
+
+Jet.consume(
+  { stream: 'ORDERS', durable: 'orders-worker', filterSubject: 'orders.created' },
+  'OrderListener.onCreated'
+)
+```
+
+```typescript
+import type { NatsContextContract } from '@ioc:Adonis/Addons/NatsContext'
+
+export default class OrderListener {
+  public async onCreated({ request, message }: NatsContextContract) {
+    const order = request.body()
+    // ... process the order ...
+
+    // Auto-acked when the action returns, auto-naked when it throws.
+    // Or take manual control via ctx.message:
+    //   message?.ack()             done
+    //   message?.nak(5000)         retry after 5s
+    //   message?.term('bad data')  never redeliver
+    //   message?.working()         reset the ack-wait timer for long work
+  }
+}
+```
+
+`Jet.consume` options: `stream` (required), `durable` / `name`, `filterSubject`, `middleware` (named middleware), `ackPolicy`, `deliverPolicy`, `maxDeliver`, `ackWait`, `maxMessages`, and `autoAck` (default `true`).
+
+## Key-Value store
+
+```typescript
+import KV from '@ioc:Adonis/Addons/NatsKV'
+
+const sessions = await KV.bucket('sessions')   // created if needed, cached per name
+await sessions.put('user:1', JSON.stringify({ name: 'jon' }))
+
+const entry = await sessions.get('user:1')
+console.log(entry?.json()) // { name: 'jon' }
+
+const watch = await sessions.watch()
+for await (const e of watch) {
+  console.log(e.key, e.operation)
+}
+```
+
+`bucket()` returns the native nats.js `KV`, so its full API (`keys`, `history`, `purge`, `delete`, `watch`, …) is available. Declare buckets under `kv.buckets` in config to provision them with `nats:sync`.
+
+## Object store
+
+```typescript
+import ObjectStore from '@ioc:Adonis/Addons/NatsObjectStore'
+
+// Buffer/string convenience helpers
+await ObjectStore.putBlob('uploads', 'avatar.png', someUint8Array)
+const bytes = await ObjectStore.getBlob('uploads', 'avatar.png') // Uint8Array | null
+
+// Or the native streaming ObjectStore API
+const bucket = await ObjectStore.bucket('uploads')
+const list = await bucket.list()
+```
+
+## Connection events
+
+The shared connection forwards its lifecycle onto the AdonisJS event emitter:
+
+```typescript
+import Event from '@ioc:Adonis/Core/Event'
+
+Event.on('nats:connect', ({ connection }) => {})
+Event.on('nats:reconnect', ({ connection }) => {})
+Event.on('nats:disconnect', ({ connection }) => {})
+Event.on('nats:closed', ({ connection, error }) => {})
+Event.on('nats:error', ({ connection, error }) => {})
+```
+
+## Testing
+
+`test.ts` is a run mode, so when the test app boots it opens the connection and starts consuming — your routes answer requests sent from within the test. A NATS server must be running (and `node ace nats:sync` applied if you use JetStream / KV / Object Store).
+
+### Using the broker directly (recommended)
+
+`Broker.request` always resolves with the response, so assert on `res.headers.status` and `res.body` — no try/catch needed. Generate a spec with `node ace make:nats:test Users`:
+
+```typescript
+import { test } from '@japa/runner'
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+test.group('Users', () => {
+  test('lists users', async ({ assert }) => {
+    const res = await Broker.request('v1.get.users', {}, { headers: { authorization: 'test' } })
+    assert.equal(res.headers.status, 200)
+    assert.deepInclude(res.body[0], { id: 1, name: 'Jon' })
+  })
+
+  test('rejects without auth', async ({ assert }) => {
+    const res = await Broker.request('v1.get.users')
+    assert.equal(res.headers.status, 401)
+  })
+})
+```
+
+JetStream, KV, and Object Store are tested the same way — import the binding and call it:
+
+```typescript
+import Jet from '@ioc:Adonis/Addons/NatsJetStream'
+
+test('publishes to a stream', async ({ assert }) => {
+  const ack = await Jet.publish('users.created', { id: 42 })
+  assert.isAbove(ack.seq, 0)
+})
+```
+
+### Using the test client plugin (optional)
+
+The package also ships a japa plugin that adds a `broker` test context with chainable assertions. Register it in `tests/bootstrap.ts`:
+
+```typescript
+import { natsClient } from 'adonis5-nats-broker/build/src/test'
+import Broker from '@ioc:Adonis/Addons/NatsBroker'
+
+export const plugins: Required<Config>['plugins'] = [
+  assert(),
+  apiClient(),
+  natsClient(Broker),
+]
+```
+
+```typescript
+test('get users', async ({ broker }) => {
+  const response = await broker.request('v1.get.users', {}, { headers: { authorization: 'test' } })
+  response.assertStatus(200)
+  response.assertBodyContains([{ id: 1 }])
+})
+```
+
+## Ace commands
+
+| Command | Description |
+| --- | --- |
+| `node ace configure adonis5-nats-broker` | Scaffold `config/nats.ts` and `start/broker.ts`, wire the provider |
+| `node ace init:nats:handler` | Create the global exception handler |
+| `node ace make:nats:controller <Name>` | New controller |
+| `node ace make:nats:listener <Name>` | New JetStream listener (consumer controller) |
+| `node ace make:nats:middleware <Name>` | New middleware |
+| `node ace make:nats:exception <Name>` | New custom exception |
+| `node ace make:nats:test <Name>` | New NATS test |
+| `node ace nats:sync` | Reconcile streams, consumers, and KV / Object Store buckets from config |
+
+## Migrating from v1
+
+v2 is a breaking rewrite. The main changes:
+
+- **Config reshape** — core request/reply settings moved under a `core` key: `routes` → `core.routes`, `request` → `core.request`, `publish` → `core.publish`. New `jetstream`, `kv`, and `objectStore` sections were added. Re-run `node ace configure adonis5-nats-broker` to regenerate `config/nats.ts`, then port your values.
+- **One shared connection** — `request` / `publish` no longer open a connection per call; everything reuses a single lazily-opened connection.
+- **nats.js v3** — the package now depends on the modular `@nats-io/*` packages instead of `nats@2`. Application code that only uses the `@ioc:Adonis/Addons/Nats*` bindings needs no changes.
+- **New capabilities** — JetStream, KV, Object Store, route groups, per-route middleware, and `node ace nats:sync`.
+
+## License
+
+[MIT](LICENSE.md)

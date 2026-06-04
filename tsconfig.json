@@ -10,5 +10,6 @@
   "files": [
     "./node_modules/@adonisjs/core/build/adonis-typings/index.d.ts",
     "./adonis-typings/index.ts"
-  ]
+  ],
+  "exclude": ["node_modules", "build", "example"]
 }

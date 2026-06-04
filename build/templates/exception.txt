@@ -1,0 +1,29 @@
+import {Exception} from '@adonisjs/core/build/standalone'
+import {NatsContextContract} from "@ioc:Adonis/Addons/NatsContext";
+import Env from '@ioc:Adonis/Core/Env'
+
+/*
+|--------------------------------------------------------------------------
+| Exception
+|--------------------------------------------------------------------------
+|
+| The Exception class imported from `@adonisjs/core` allows defining
+| a status code and error code for every exception.
+|
+| @example
+| new TestException('message', 500, 'E_RUNTIME_EXCEPTION')
+|
+*/
+export default class {{ filename }} extends Exception {
+    public async handle(error: this, ctx: NatsContextContract) {
+        const message = error.message.split(':').pop()
+        const errorMessage = {
+          code: error.code,
+          message: message?.trim(),
+          data: [],
+        }
+        if (Env.get('NODE_ENV', 'development') === 'development')
+          errorMessage['stack'] = error.stack
+        ctx.response.status(error.status).send(error.message)
+    }
+}

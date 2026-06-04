@@ -1,10 +1,19 @@
-import { ConfigContract } from '@ioc:Adonis/Addons/NatsBroker'
+/*
+ * adonis5-nats-broker
+ *
+ * (c) Dev.zarghami https://github.com/devzarghami
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+import type { ConfigContract } from '@ioc:Adonis/Addons/NatsBroker'
 
 const config: ConfigContract = {
   runModes: ['test.ts', 'server.js', 'server.ts'],
   ignoreMiddlewares: ['BodyParserMiddleware'],
+  generateRequestId: true,
   connection: {
-    debug: false,
     name: 'adonis5-nats-broker',
     servers: 'nats://localhost:4222',
     maxReconnectAttempts: 10,
@@ -18,22 +27,36 @@ const config: ConfigContract = {
     middleware: 'app/Middleware/Nats',
     exceptions: 'app/Exceptions/Nats',
     exceptionHandler: 'app/Exceptions/Nats/Handler',
+    listeners: 'app/Controllers/Nats',
   },
-  generateRequestId: true,
-  routes: {
-    options: {},
-    prefix: '',
+  core: {
+    routes: {
+      options: {},
+      prefix: '',
+    },
+    request: {
+      timeout: 30000,
+      prefix: '',
+      headers: {},
+      qs: {},
+    },
+    publish: {
+      prefix: '',
+      headers: {},
+      qs: {},
+    },
   },
-  request: {
-    timeout: 30000,
-    prefix: '',
-    headers: {},
-    qs: {},
+  jetstream: {
+    enabled: false,
+    streams: [],
+    consumers: [],
   },
-  publish: {
-    prefix: '',
-    headers: {},
-    qs: {},
+  kv: {
+    buckets: [],
+  },
+  objectStore: {
+    buckets: [],
   },
 }
+
 export default config

@@ -1,0 +1,207 @@
+{
+  "commands": {
+    "dump:rcfile": {
+      "settings": {},
+      "commandPath": "@adonisjs/core/build/commands/DumpRc",
+      "commandName": "dump:rcfile",
+      "description": "Dump contents of .adonisrc.json file along with defaults",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    },
+    "list:routes": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": true
+      },
+      "commandPath": "@adonisjs/core/build/commands/ListRoutes/index",
+      "commandName": "list:routes",
+      "description": "List application routes",
+      "args": [],
+      "aliases": [],
+      "flags": [
+        {
+          "name": "verbose",
+          "propertyName": "verbose",
+          "type": "boolean",
+          "description": "Display more information"
+        },
+        {
+          "name": "reverse",
+          "propertyName": "reverse",
+          "type": "boolean",
+          "alias": "r",
+          "description": "Reverse routes display"
+        },
+        {
+          "name": "methods",
+          "propertyName": "methodsFilter",
+          "type": "array",
+          "alias": "m",
+          "description": "Filter routes by method"
+        },
+        {
+          "name": "patterns",
+          "propertyName": "patternsFilter",
+          "type": "array",
+          "alias": "p",
+          "description": "Filter routes by the route pattern"
+        },
+        {
+          "name": "names",
+          "propertyName": "namesFilter",
+          "type": "array",
+          "alias": "n",
+          "description": "Filter routes by route name"
+        },
+        {
+          "name": "json",
+          "propertyName": "json",
+          "type": "boolean",
+          "description": "Output as JSON"
+        },
+        {
+          "name": "table",
+          "propertyName": "table",
+          "type": "boolean",
+          "description": "Output as Table"
+        },
+        {
+          "name": "max-width",
+          "propertyName": "maxWidth",
+          "type": "number",
+          "description": "Specify maximum rendering width. Ignored for JSON Output"
+        }
+      ]
+    },
+    "generate:key": {
+      "settings": {},
+      "commandPath": "@adonisjs/core/build/commands/GenerateKey",
+      "commandName": "generate:key",
+      "description": "Generate a new APP_KEY secret",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    },
+    "repl": {
+      "settings": {
+        "loadApp": true,
+        "environment": "repl",
+        "stayAlive": true
+      },
+      "commandPath": "@adonisjs/repl/build/commands/AdonisRepl",
+      "commandName": "repl",
+      "description": "Start a new REPL session",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    },
+    "make:nats:controller": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeController",
+      "commandName": "make:nats:controller",
+      "description": "Make a new Nats controller",
+      "args": [
+        {
+          "type": "string",
+          "propertyName": "name",
+          "name": "name",
+          "required": true,
+          "description": "Name of the nats controller"
+        }
+      ],
+      "aliases": [],
+      "flags": []
+    },
+    "make:nats:middleware": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeMiddleware",
+      "commandName": "make:nats:middleware",
+      "description": "Make a new Nats middleware",
+      "args": [
+        {
+          "type": "string",
+          "propertyName": "name",
+          "name": "name",
+          "required": true,
+          "description": "Name of the nats middleware"
+        }
+      ],
+      "aliases": [],
+      "flags": []
+    },
+    "make:nats:listener": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeListener",
+      "commandName": "make:nats:listener",
+      "description": "Make a new JetStream listener (consumer controller)",
+      "args": [
+        {
+          "type": "string",
+          "propertyName": "name",
+          "name": "name",
+          "required": true,
+          "description": "Name of the nats listener"
+        }
+      ],
+      "aliases": [],
+      "flags": []
+    },
+    "make:nats:test": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeTest",
+      "commandName": "make:nats:test",
+      "description": "Make a new Nats test",
+      "args": [
+        {
+          "type": "string",
+          "propertyName": "name",
+          "name": "name",
+          "required": true,
+          "description": "Name of the nats test"
+        }
+      ],
+      "aliases": [],
+      "flags": []
+    },
+    "make:nats:exception": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeException",
+      "commandName": "make:nats:exception",
+      "description": "Make a new Nats exception",
+      "args": [
+        {
+          "type": "string",
+          "propertyName": "name",
+          "name": "name",
+          "required": true,
+          "description": "Name of the nats exception"
+        }
+      ],
+      "aliases": [],
+      "flags": []
+    },
+    "init:nats:handler": {
+      "settings": {},
+      "commandPath": "adonis5-nats-broker/build/commands/MakeHandler",
+      "commandName": "init:nats:handler",
+      "description": "Make Nats exception handler",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    },
+    "nats:sync": {
+      "settings": {
+        "loadApp": true,
+        "stayAlive": false
+      },
+      "commandPath": "adonis5-nats-broker/build/commands/NatsSync",
+      "commandName": "nats:sync",
+      "description": "Reconcile JetStream streams/consumers and KV/Object Store buckets from config",
+      "args": [],
+      "aliases": [],
+      "flags": []
+    }
+  },
+  "aliases": {}
+}
