@@ -20,7 +20,6 @@ import KeyValue from '../src/KV'
 import ObjectStoreManager from '../src/ObjectStore'
 import Stream from '../src/Stream'
 import ExceptionHandler from '../src/ExceptionHandler'
-import { natsClient } from '../src/test'
 
 export default class NatsProvider {
   public static needsApplication = true
@@ -43,7 +42,6 @@ export default class NatsProvider {
     this.app.container.singleton('Adonis/Addons/NatsObjectStore', () => this.objectStore)
     this.app.container.singleton('Adonis/Addons/NatsStream', () => this.stream)
     this.app.container.singleton('Adonis/Addons/NatsExceptionHandler', () => ExceptionHandler)
-    this.app.container.singleton('Adonis/Addons/NatsTest', () => ({ natsClient }))
   }
 
   public async boot() {
